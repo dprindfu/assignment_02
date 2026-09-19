@@ -51,7 +51,7 @@ def test_reports_use_the_package():
     importing it.
     """
     for script in ALL_REPORTS:
-        with open(repo_path(script)) as source_file:
+        with open(repo_path(script), encoding="utf-8") as source_file:
             source = source_file.read()
 
         imported_from = set()

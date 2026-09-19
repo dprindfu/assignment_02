@@ -48,8 +48,12 @@ def clean_currency(value) -> float:
       report of 400 good rows.
     """
     # TODO: your code here
-    pass
-
+    try:
+        if isinstance(value, str):
+            value = value.replace("$", "").replace(",", "")
+        return float(value)
+    except (ValueError, TypeError):
+        return 0.0
 
 def clean_quantity(value) -> int:
     """Convert a raw quantity into an int, using 0 when it cannot be read.
@@ -74,8 +78,12 @@ def clean_quantity(value) -> int:
       data, and bad data becomes `0`.
     """
     # TODO: your code here
-    pass
-
+    if value is None:
+        return 0
+    try:
+        return int(str(value).strip())
+    except ValueError:
+        return 0
 
 def clean_sales_data(raw_data: list[dict]) -> list[dict]:
     """Clean every raw row and add the revenue it earned.
@@ -105,7 +113,23 @@ def clean_sales_data(raw_data: list[dict]) -> list[dict]:
       a second time.
     """
     # TODO: your code here
-    pass
+    cleaned_data = []
+
+    for row in raw_data:
+        cleaned_row = {
+            "date": row["date"],
+            "item": row["item"],
+            "price": clean_currency(row["price"]),
+            "qty": clean_quantity(row["qty"])
+        }
+
+        cleaned_row["total_revenue"] = (
+            cleaned_row["price"] * cleaned_row["qty"]
+        )
+
+        cleaned_data.append(cleaned_row)
+
+    return cleaned_data
 
 
 def calculate_total_revenue(cleaned_data: list[dict]) -> float:
@@ -129,7 +153,12 @@ def calculate_total_revenue(cleaned_data: list[dict]) -> float:
       `clean_sales_data`, so `row["total_revenue"]` is a number you can trust.
     """
     # TODO: your code here
-    pass
+    total = 0                    
+
+    for row in cleaned_data:     
+        total += row["total_revenue"]        
+
+    return total                 
 
 
 def summarize_by_item(cleaned_data: list[dict]) -> list[dict]:
@@ -164,72 +193,60 @@ def summarize_by_item(cleaned_data: list[dict]) -> list[dict]:
       "sort by revenue, biggest first, and use the name to break ties."
     """
     # TODO: your code here
-    pass
+    totals = {}
+
+    for row in cleaned_data:
+        item = row["item"]
+
+        if item not in totals:
+            totals[item] = {
+                "item": item,
+                "units_sold": 0,
+                "revenue": 0.0
+            }
+
+        totals[item]["units_sold"] += row["qty"]
+        totals[item]["revenue"] += row["total_revenue"]
+
+    return sorted(
+        totals.values(),
+        key=lambda entry: (-entry["revenue"], entry["item"])
+    )
 
 
 def summarize_by_day(cleaned_data: list[dict]) -> list[dict]:
-    """Roll the row-level data up to one entry per calendar day.
+    """Roll the row-level data up to one entry per day."""
 
-    The same *group by* as `summarize_by_item`, asked of a different column. Where
-    that one answers "which products sell?", this one answers "when do we sell?".
+    totals = {}
 
-    The result is sorted by date, **earliest first** — a different choice from
-    `summarize_by_item`, and a deliberate one. A ranking of products is most useful
-    biggest-first; a run of days is most useful in the order they happened, so the
-    reader can see a trend.
+    for row in cleaned_data:
+        date = row["date"]
 
-    Example:
+        if date not in totals:
+            totals[date] = {
+                "date": date,
+                "units_sold": 0,
+                "revenue": 0.0
+            }
 
-    output: [{'date': '2023-10-01', 'units_sold': 6, 'revenue': 98.0},
-             {'date': '2023-10-02', 'units_sold': 2, 'revenue': 30.0}]
+        totals[date]["units_sold"] += row["qty"]
+        totals[date]["revenue"] += row["total_revenue"]
 
-    How to build it:
-
-    - Start from `summarize_by_item` and change two things: group on `row["date"]`
-      instead of `row["item"]`, and give each entry a `date` key instead of an
-      `item` key. The accumulate-into-a-dictionary half is identical, which is the
-      point — you are recognising a pattern you already know, not inventing one.
-    - The sort is simpler here, not harder: `key=lambda entry: entry["date"]`, no
-      negation and no tie-breaker. Dates in `YYYY-MM-DD` form sort correctly as
-      plain text, because the most significant part is written first. That is the
-      whole reason the format is written that way.
-    - Every row has a date, so unlike items there is no chance of a day appearing
-      twice under two spellings. Do still guard the "first time I have seen this
-      date" case, or the first row of each day has nothing to add itself to.
-    """
-    # TODO: your code here
-    pass
-
+    return sorted(
+        totals.values(),
+        key=lambda entry: entry["date"]
+    )
 
 def find_top_entry(summary: list[dict], field: str = "revenue") -> dict:
-    """Return the entry of `summary` with the largest value in `field`.
+    """Return the entry of `summary` with the largest value in `field`."""
 
-    Pass `field="revenue"` for the biggest earner, `field="units_sold"` for the
-    biggest mover. They are often not the same item, which is exactly the sort of
-    thing Marketing wants to know.
+    if not summary:
+        return {}
 
-    Returns an empty dict when there is nothing to rank.
+    best = summary[0]
 
-    Example:
+    for entry in summary:
+        if entry[field] > best[field]:
+            best = entry
 
-    input:  [{'item': 'Widget A', 'units_sold': 10, 'revenue': 125.0},
-             {'item': 'Widget C', 'units_sold': 15, 'revenue': 80.0}], 'units_sold'
-    output: {'item': 'Widget C', 'units_sold': 15, 'revenue': 80.0}
-
-    How to build it:
-
-    - Another accumulator, but it tracks a *winner* instead of a total: assume the
-      first entry is the best so far, then loop and replace it whenever you meet a
-      bigger one.
-    - `field` is a string holding a key name, so look the value up with
-      `entry[field]`. Not `entry.field`, and definitely not a hardcoded
-      `entry["revenue"]` — that one variable is the entire reason Marketing can ask
-      this same function two different questions.
-    - Guard the empty list *before* you reach for `summary[0]`, or an empty
-      dataset crashes the report.
-    - Do not be tempted to `return summary[0]` because the list arrives sorted
-      by revenue. It is only sorted by *revenue*, so that answer is wrong the moment
-      someone asks for `units_sold`.
-    """
-    # TODO: your code here
-    pass
+    return best
